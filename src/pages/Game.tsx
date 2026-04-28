@@ -50,7 +50,7 @@ export default function Game() {
     if (!gameId) return;
     loadGame();
     const channel = supabase
-      .channel(`game-${gameId}`)
+      .channel(`game-${gameId}-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "games", filter: `id=eq.${gameId}` }, () => loadGame())
       .on("postgres_changes", { event: "*", schema: "public", table: "game_players", filter: `game_id=eq.${gameId}` }, () => loadGame())
       .subscribe();
