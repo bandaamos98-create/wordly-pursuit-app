@@ -77,6 +77,9 @@ export default {
         display: ["Fraunces", "Georgia", "serif"],
         sans: ["DM Sans", "system-ui", "sans-serif"],
       },
+      gridTemplateColumns: {
+        "15": "repeat(15, minmax(0, 1fr))",
+      },
       backgroundImage: {
         "gradient-hero": "var(--gradient-hero)",
         "gradient-primary": "var(--gradient-primary)",
