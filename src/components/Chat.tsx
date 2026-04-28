@@ -20,7 +20,7 @@ export function Chat({ gameId, userId }: { gameId: string; userId: string }) {
   useEffect(() => {
     loadMessages();
     const channel = supabase
-      .channel(`game-chat-${gameId}`)
+      .channel(`game-chat-${gameId}-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `game_id=eq.${gameId}` }, () => loadMessages())
       .subscribe();
 
