@@ -1,9 +1,11 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useProfiles } from "@/hooks/useProfile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ProfilePic } from "@/components/ProfilePic";
 
 type ChatMessage = {
   id: string;
@@ -51,21 +53,22 @@ export function Chat({ gameId, userId }: { gameId: string; userId: string }) {
     await supabase.from("chat_messages").insert({ game_id: gameId, user_id: userId, message: text });
   }
 
+  const profiles = useProfiles(messages.map((m) => m.user_id));
+
   return (
     <div className="flex h-full min-h-[360px] flex-col">
       <ScrollArea className="min-h-0 flex-1 pr-3">
         <div className="space-y-3 pb-3">
           {messages.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No messages yet.</p>
+            <p className="text-sm text-muted-foreground text-center py-8">No messages yet. Say hi! 👋</p>
           ) : (
             messages.map((item) => {
               const mine = item.user_id === userId;
+              const p = profiles[item.user_id];
               return (
-                <div key={item.id} className={mine ? "text-right" : "text-left"}>
-                  <div className="mb-1 text-[11px] text-muted-foreground">
-                    {mine ? "You" : "Opponent"}
-                  </div>
-                  <div className={`inline-block max-w-[82%] rounded-lg px-3 py-2 text-sm ${mine ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
+                <div key={item.id} className={`flex gap-2 items-end ${mine ? "flex-row-reverse" : ""}`}>
+                  <ProfilePic url={p?.avatar_url} name={p?.display_name || (mine ? "You" : "?")} size="sm" />
+                  <div className={`max-w-[78%] rounded-2xl px-3 py-2 text-sm ${mine ? "bg-primary text-primary-foreground rounded-br-sm" : "bg-secondary text-secondary-foreground rounded-bl-sm"}`}>
                     {item.message}
                   </div>
                 </div>
