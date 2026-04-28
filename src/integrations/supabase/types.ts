@@ -126,6 +126,42 @@ export type Database = {
         }
         Relationships: []
       }
+      match_history: {
+        Row: {
+          finished_at: string
+          game_id: string | null
+          id: string
+          is_draw: boolean
+          player1_id: string
+          player1_score: number
+          player2_id: string
+          player2_score: number
+          winner_id: string | null
+        }
+        Insert: {
+          finished_at?: string
+          game_id?: string | null
+          id?: string
+          is_draw?: boolean
+          player1_id: string
+          player1_score?: number
+          player2_id: string
+          player2_score?: number
+          winner_id?: string | null
+        }
+        Update: {
+          finished_at?: string
+          game_id?: string | null
+          id?: string
+          is_draw?: boolean
+          player1_id?: string
+          player1_score?: number
+          player2_id?: string
+          player2_score?: number
+          winner_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -158,7 +194,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      cleanup_old_finished_games: { Args: never; Returns: undefined }
+      get_head_to_head: {
+        Args: { _me: string; _opponent: string }
+        Returns: {
+          draws: number
+          losses: number
+          total: number
+          wins: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
