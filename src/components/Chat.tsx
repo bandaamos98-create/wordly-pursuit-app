@@ -10,7 +10,6 @@ type ChatMessage = {
   user_id: string;
   message: string;
   created_at: string;
-  profiles?: { display_name: string | null } | null;
 };
 
 export function Chat({ gameId, userId }: { gameId: string; userId: string }) {
@@ -37,7 +36,7 @@ export function Chat({ gameId, userId }: { gameId: string; userId: string }) {
   async function loadMessages() {
     const { data } = await supabase
       .from("chat_messages")
-      .select("id,user_id,message,created_at,profiles(display_name)")
+      .select("id,user_id,message,created_at")
       .eq("game_id", gameId)
       .order("created_at", { ascending: true })
       .limit(100);
@@ -64,7 +63,7 @@ export function Chat({ gameId, userId }: { gameId: string; userId: string }) {
               return (
                 <div key={item.id} className={mine ? "text-right" : "text-left"}>
                   <div className="mb-1 text-[11px] text-muted-foreground">
-                    {mine ? "You" : item.profiles?.display_name || "Opponent"}
+                    {mine ? "You" : "Opponent"}
                   </div>
                   <div className={`inline-block max-w-[82%] rounded-lg px-3 py-2 text-sm ${mine ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground"}`}>
                     {item.message}
