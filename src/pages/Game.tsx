@@ -76,7 +76,7 @@ export default function Game() {
       supabase.from("games").select("*").eq("id", gameId).maybeSingle(),
       supabase.from("game_players").select("user_id,rack").eq("game_id", gameId).eq("user_id", user.id).maybeSingle(),
     ]);
-    setGame((gameData as GameRow | null) ?? null);
+    setGame(((gameData as unknown) as GameRow | null) ?? null);
     setPlayer((playerData as PlayerRow | null) ?? null);
   }, [gameId, user]);
 
