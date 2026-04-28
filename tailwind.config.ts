@@ -22,6 +22,7 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          glow: "hsl(var(--primary-glow))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -47,6 +48,20 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        tile: {
+          DEFAULT: "hsl(var(--tile))",
+          foreground: "hsl(var(--tile-foreground))",
+        },
+        bonus: {
+          tw: "hsl(var(--bonus-tw))",
+          dw: "hsl(var(--bonus-dw))",
+          tl: "hsl(var(--bonus-tl))",
+          dl: "hsl(var(--bonus-dl))",
+        },
+        board: {
+          cell: "hsl(var(--board-cell))",
+          center: "hsl(var(--board-center))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -57,6 +72,19 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+      },
+      fontFamily: {
+        display: ["Fraunces", "Georgia", "serif"],
+        sans: ["DM Sans", "system-ui", "sans-serif"],
+      },
+      backgroundImage: {
+        "gradient-hero": "var(--gradient-hero)",
+        "gradient-primary": "var(--gradient-primary)",
+      },
+      boxShadow: {
+        tile: "var(--shadow-tile)",
+        soft: "var(--shadow-soft)",
+        glow: "var(--shadow-glow)",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -80,10 +108,20 @@ export default {
             height: "0",
           },
         },
+        "tile-drop": {
+          "0%": { transform: "translateY(-20px) scale(0.8)", opacity: "0" },
+          "100%": { transform: "translateY(0) scale(1)", opacity: "1" },
+        },
+        "float": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-8px)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "tile-drop": "tile-drop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "float": "float 4s ease-in-out infinite",
       },
     },
   },
