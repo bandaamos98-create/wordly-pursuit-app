@@ -14,7 +14,145 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      chat_messages: {
+        Row: {
+          created_at: string
+          game_id: string
+          id: string
+          message: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          game_id: string
+          id?: string
+          message: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          game_id?: string
+          id?: string
+          message?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_players: {
+        Row: {
+          game_id: string
+          id: string
+          rack: Json
+          user_id: string
+        }
+        Insert: {
+          game_id: string
+          id?: string
+          rack?: Json
+          user_id: string
+        }
+        Update: {
+          game_id?: string
+          id?: string
+          rack?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_players_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      games: {
+        Row: {
+          board: Json
+          created_at: string
+          current_turn_user_id: string | null
+          id: string
+          join_code: string
+          passes_in_a_row: number
+          player1_id: string
+          player1_score: number
+          player2_id: string | null
+          player2_score: number
+          status: string
+          tile_bag: Json
+          updated_at: string
+          winner_id: string | null
+        }
+        Insert: {
+          board?: Json
+          created_at?: string
+          current_turn_user_id?: string | null
+          id?: string
+          join_code: string
+          passes_in_a_row?: number
+          player1_id: string
+          player1_score?: number
+          player2_id?: string | null
+          player2_score?: number
+          status?: string
+          tile_bag?: Json
+          updated_at?: string
+          winner_id?: string | null
+        }
+        Update: {
+          board?: Json
+          created_at?: string
+          current_turn_user_id?: string | null
+          id?: string
+          join_code?: string
+          passes_in_a_row?: number
+          player1_id?: string
+          player1_score?: number
+          player2_id?: string | null
+          player2_score?: number
+          status?: string
+          tile_bag?: Json
+          updated_at?: string
+          winner_id?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string
+          games_played: number
+          id: string
+          total_score: number
+          wins: number
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          games_played?: number
+          id: string
+          total_score?: number
+          wins?: number
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          games_played?: number
+          id?: string
+          total_score?: number
+          wins?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
