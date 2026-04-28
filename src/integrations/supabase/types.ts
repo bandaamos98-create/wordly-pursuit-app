@@ -46,6 +46,60 @@ export type Database = {
           },
         ]
       }
+      friendships: {
+        Row: {
+          addressee_id: string
+          created_at: string
+          id: string
+          requester_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          addressee_id: string
+          created_at?: string
+          id?: string
+          requester_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          addressee_id?: string
+          created_at?: string
+          id?: string
+          requester_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      game_invites: {
+        Row: {
+          created_at: string
+          game_id: string
+          id: string
+          invitee_id: string
+          inviter_id: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          game_id: string
+          id?: string
+          invitee_id: string
+          inviter_id: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          game_id?: string
+          id?: string
+          invitee_id?: string
+          inviter_id?: string
+          status?: string
+        }
+        Relationships: []
+      }
       game_players: {
         Row: {
           game_id: string
@@ -81,7 +135,10 @@ export type Database = {
           created_at: string
           current_turn_user_id: string | null
           id: string
+          is_solo: boolean
           join_code: string
+          last_move: Json | null
+          mode: string
           passes_in_a_row: number
           player1_id: string
           player1_score: number
@@ -89,6 +146,8 @@ export type Database = {
           player2_score: number
           status: string
           tile_bag: Json
+          turn_deadline: string | null
+          turn_seconds: number | null
           updated_at: string
           winner_id: string | null
         }
@@ -97,7 +156,10 @@ export type Database = {
           created_at?: string
           current_turn_user_id?: string | null
           id?: string
+          is_solo?: boolean
           join_code: string
+          last_move?: Json | null
+          mode?: string
           passes_in_a_row?: number
           player1_id: string
           player1_score?: number
@@ -105,6 +167,8 @@ export type Database = {
           player2_score?: number
           status?: string
           tile_bag?: Json
+          turn_deadline?: string | null
+          turn_seconds?: number | null
           updated_at?: string
           winner_id?: string | null
         }
@@ -113,7 +177,10 @@ export type Database = {
           created_at?: string
           current_turn_user_id?: string | null
           id?: string
+          is_solo?: boolean
           join_code?: string
+          last_move?: Json | null
+          mode?: string
           passes_in_a_row?: number
           player1_id?: string
           player1_score?: number
@@ -121,6 +188,8 @@ export type Database = {
           player2_score?: number
           status?: string
           tile_bag?: Json
+          turn_deadline?: string | null
+          turn_seconds?: number | null
           updated_at?: string
           winner_id?: string | null
         }
@@ -164,26 +233,32 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string
           display_name: string
           games_played: number
           id: string
+          theme: string
           total_score: number
           wins: number
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           display_name: string
           games_played?: number
           id: string
+          theme?: string
           total_score?: number
           wins?: number
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           display_name?: string
           games_played?: number
           id?: string
+          theme?: string
           total_score?: number
           wins?: number
         }
@@ -195,6 +270,7 @@ export type Database = {
     }
     Functions: {
       cleanup_old_finished_games: { Args: never; Returns: undefined }
+      find_user_id_by_email: { Args: { _email: string }; Returns: string }
       get_head_to_head: {
         Args: { _me: string; _opponent: string }
         Returns: {
