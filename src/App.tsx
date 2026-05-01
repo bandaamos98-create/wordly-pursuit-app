@@ -8,6 +8,8 @@ import Auth from "./pages/Auth.tsx";
 import Game from "./pages/Game.tsx";
 import Index from "./pages/Index.tsx";
 import Lobby from "./pages/Lobby.tsx";
+import Friends from "./pages/Friends.tsx";
+import Settings from "./pages/Settings.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -23,6 +25,8 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/lobby" element={<Lobby />} />
+            <Route path="/friends" element={<Friends />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/game/:gameId" element={<Game />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
