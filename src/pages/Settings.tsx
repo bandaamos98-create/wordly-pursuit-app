@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, LogOut, Moon, Sun, Monitor, KeyRound } from "lucide-react";
+import { ArrowLeft, Camera, LogOut, Moon, Sun, Monitor, KeyRound, Info, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -167,6 +167,23 @@ export default function Settings() {
             <Button onClick={updatePassword} disabled={pwBusy || !pw1 || !pw2} className="w-full">
               {pwBusy ? "Updating…" : "Update password"}
             </Button>
+          </div>
+        </Card>
+
+        <Card className="p-5 shadow-soft">
+          <h2 className="mb-3 text-lg flex items-center gap-2"><Info className="h-4 w-4" /> About</h2>
+          <div className="space-y-2 text-sm">
+            <p className="text-muted-foreground">
+              WordPlay is a real-time word battle game. Challenge friends, chat live, and climb the leaderboard.
+            </p>
+            <div className="rounded-lg border border-border bg-secondary/40 p-3 mt-3">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Developer</p>
+              <p className="font-medium">Amos Banda</p>
+              <a href="mailto:bandaamod98@gmail.com" className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
+                <Mail className="h-3.5 w-3.5" /> bandaamod98@gmail.com
+              </a>
+            </div>
+            <p className="text-xs text-muted-foreground pt-1">Version 1.0.0</p>
           </div>
         </Card>
       </main>
