@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Camera, LogOut, Moon, Sun, Monitor } from "lucide-react";
+import { ArrowLeft, Camera, LogOut, Moon, Sun, Monitor, KeyRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -21,6 +21,9 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [pw1, setPw1] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
 
   useEffect(() => { if (!user) navigate("/", { replace: true }); }, [user, navigate]);
   useEffect(() => { if (profile) setName(profile.display_name); }, [profile]);
@@ -54,6 +57,17 @@ export default function Settings() {
   async function setThemePref(t: "light" | "dark" | "system") {
     setTheme(t);
     if (user) await supabase.from("profiles").update({ theme: t }).eq("id", user.id);
+  }
+
+  async function updatePassword() {
+    if (pw1.length < 6) { toast.error("Password must be at least 6 characters"); return; }
+    if (pw1 !== pw2) { toast.error("Passwords don't match"); return; }
+    setPwBusy(true);
+    const { error } = await supabase.auth.updateUser({ password: pw1 });
+    setPwBusy(false);
+    if (error) { toast.error(error.message); return; }
+    setPw1(""); setPw2("");
+    toast.success("Password updated. You can now sign in with email + password.");
   }
 
   if (!user) return null;
@@ -136,6 +150,24 @@ export default function Settings() {
           <Button variant="outline" onClick={signOut} className="w-full">
             <LogOut className="h-4 w-4" /> Sign out
           </Button>
+        </Card>
+
+        <Card className="p-5 shadow-soft">
+          <h2 className="mb-1 text-lg flex items-center gap-2"><KeyRound className="h-4 w-4" /> Password</h2>
+          <p className="mb-4 text-xs text-muted-foreground">Set or change a password so you can also sign in with email + password.</p>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="pw1">New password</Label>
+              <Input id="pw1" type="password" value={pw1} onChange={(e) => setPw1(e.target.value)} placeholder="At least 6 characters" autoComplete="new-password" />
+            </div>
+            <div>
+              <Label htmlFor="pw2">Confirm password</Label>
+              <Input id="pw2" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="Re-enter password" autoComplete="new-password" />
+            </div>
+            <Button onClick={updatePassword} disabled={pwBusy || !pw1 || !pw2} className="w-full">
+              {pwBusy ? "Updating…" : "Update password"}
+            </Button>
+          </div>
         </Card>
       </main>
     </div>

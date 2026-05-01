@@ -1,53 +1,47 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile, useProfiles } from "@/hooks/useProfile";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { ProfilePic } from "@/components/ProfilePic";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { freshTileBag, drawTiles, emptyBoard, generateJoinCode, RACK_SIZE } from "@/lib/game/constants";
-import { BOT_USER_ID } from "@/lib/bot";
-import { Bot, Plus, Users, Trophy, Settings as SettingsIcon, UsersRound, Mail, Sparkles, Zap, Crown } from "lucide-react";
+import { Plus, Trophy, Settings as SettingsIcon, UsersRound, Check, X, Send, Swords } from "lucide-react";
 
 type GameRow = {
   id: string; join_code: string; status: string;
   player1_id: string; player2_id: string | null;
   player1_score: number; player2_score: number;
   updated_at: string; winner_id: string | null;
-  is_solo: boolean; mode: string;
 };
 
-type GameMode = "classic" | "blitz" | "marathon";
-const MODES: { id: GameMode; name: string; desc: string; icon: typeof Sparkles }[] = [
-  { id: "classic", name: "Classic", desc: "Standard rules, no time limit", icon: Sparkles },
-  { id: "blitz", name: "Blitz", desc: "Fast-paced, 60s per turn", icon: Zap },
-  { id: "marathon", name: "Marathon", desc: "Two-bag draw, 200+ pts to win", icon: Crown },
-];
+type Friendship = { id: string; requester_id: string; addressee_id: string; status: string };
+type Invite = { id: string; game_id: string; inviter_id: string; invitee_id: string; status: string; created_at: string };
 
 export default function Lobby() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { profile } = useProfile(user?.id);
-  const [code, setCode] = useState("");
   const [games, setGames] = useState<GameRow[]>([]);
-  const [creating, setCreating] = useState(false);
-  const [mode, setMode] = useState<GameMode>("classic");
+  const [friends, setFriends] = useState<Friendship[]>([]);
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     if (!user) { navigate("/", { replace: true }); return; }
-    loadGames();
+    loadAll();
     const ch = supabase.channel(`lobby-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "games" }, () => loadGames())
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_invites" }, () => loadInvites())
+      .on("postgres_changes", { event: "*", schema: "public", table: "friendships" }, () => loadFriends())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
   }, [user]);
 
+  async function loadAll() { await Promise.all([loadGames(), loadFriends(), loadInvites()]); }
   async function loadGames() {
     if (!user) return;
     const { data } = await supabase.from("games").select("*")
@@ -55,15 +49,40 @@ export default function Lobby() {
       .order("updated_at", { ascending: false }).limit(30);
     setGames((data ?? []) as GameRow[]);
   }
+  async function loadFriends() {
+    if (!user) return;
+    const { data } = await supabase.from("friendships").select("*")
+      .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`).eq("status", "accepted");
+    setFriends((data ?? []) as Friendship[]);
+  }
+  async function loadInvites() {
+    if (!user) return;
+    const { data } = await supabase.from("game_invites").select("*")
+      .eq("invitee_id", user.id).eq("status", "pending")
+      .order("created_at", { ascending: false });
+    setInvites((data ?? []) as Invite[]);
+  }
 
   const ongoing = games.filter((g) => g.status !== "finished");
   const finished = games.filter((g) => g.status === "finished");
   const opponentIds = games.map((g) => (g.player1_id === user?.id ? g.player2_id : g.player1_id));
-  const profiles = useProfiles(opponentIds);
+  const friendIds = friends.map((f) => f.requester_id === user?.id ? f.addressee_id : f.requester_id);
+  const inviterIds = invites.map((i) => i.inviter_id);
+  const profiles = useProfiles([...opponentIds, ...friendIds, ...inviterIds]);
 
-  async function createMultiplayer(turnSeconds: number | null = null) {
+  // Stats
+  const stats = useMemo(() => {
+    let wins = 0, losses = 0, draws = 0;
+    for (const g of finished) {
+      if (!g.winner_id) draws++;
+      else if (g.winner_id === user?.id) wins++;
+      else losses++;
+    }
+    return { wins, losses, draws };
+  }, [finished, user?.id]);
+
+  async function sendInviteToFriend(friendId: string) {
     if (!user) return;
-    setCreating(true);
     try {
       const bag = freshTileBag();
       const { drawn, remaining } = drawTiles(bag, RACK_SIZE);
@@ -72,63 +91,43 @@ export default function Lobby() {
         player1_id: user.id, status: "waiting",
         board: emptyBoard() as any, tile_bag: remaining as any,
         current_turn_user_id: user.id,
-        mode, is_solo: false,
-        turn_seconds: turnSeconds,
       }).select().single();
-      if (error) throw error;
+      if (error || !g) throw error;
       await supabase.from("game_players").insert({ game_id: g.id, user_id: user.id, rack: drawn as any });
+      const { error: invErr } = await supabase.from("game_invites").insert({
+        game_id: g.id, inviter_id: user.id, invitee_id: friendId, status: "pending",
+      });
+      if (invErr) throw invErr;
+      setPickerOpen(false);
+      toast.success("Invite sent — waiting for them to accept");
       navigate(`/game/${g.id}`);
     } catch (e: any) {
-      toast.error(e.message ?? "Failed to create game");
-    } finally { setCreating(false); }
+      toast.error(e.message ?? "Failed to send invite");
+    }
   }
 
-  async function createSolo() {
+  async function acceptInvite(inv: Invite) {
     if (!user) return;
-    setCreating(true);
-    try {
-      const bag = freshTileBag();
-      const p1 = drawTiles(bag, RACK_SIZE);
-      const p2 = drawTiles(p1.remaining, RACK_SIZE);
-      const { data: g, error } = await supabase.from("games").insert({
-        join_code: generateJoinCode(),
-        player1_id: user.id, player2_id: BOT_USER_ID,
-        status: "active",
-        board: emptyBoard() as any, tile_bag: p2.remaining as any,
-        current_turn_user_id: user.id,
-        mode, is_solo: true,
-      }).select().single();
-      if (error) throw error;
-      await supabase.from("game_players").insert([
-        { game_id: g.id, user_id: user.id, rack: p1.drawn as any },
-        { game_id: g.id, user_id: BOT_USER_ID, rack: p2.drawn as any },
-      ]);
-      navigate(`/game/${g.id}`);
-    } catch (e: any) {
-      toast.error(e.message ?? "Failed to create solo game");
-    } finally { setCreating(false); }
-  }
-
-  async function joinGame() {
-    if (!user) return;
-    const c = code.trim().toUpperCase();
-    if (c.length !== 5) { toast.error("Enter a 5-character code"); return; }
-    const { data: g, error } = await supabase.from("games").select("*").eq("join_code", c).maybeSingle();
+    const { data: g, error } = await supabase.from("games").select("*").eq("id", inv.game_id).maybeSingle();
     if (error || !g) { toast.error("Game not found"); return; }
-    if (g.player1_id === user.id) { navigate(`/game/${g.id}`); return; }
-    if (g.player2_id) { toast.error("Game is full"); return; }
-    if (g.status !== "waiting") { toast.error("Game already started"); return; }
+    if (g.player2_id && g.player2_id !== user.id) { toast.error("Game is full"); return; }
     const bagArr = (g.tile_bag as unknown as string[]) ?? [];
     const { drawn, remaining } = drawTiles(bagArr, RACK_SIZE);
     await supabase.from("games").update({ player2_id: user.id, status: "active", tile_bag: remaining as any }).eq("id", g.id);
     await supabase.from("game_players").insert({ game_id: g.id, user_id: user.id, rack: drawn as any });
+    await supabase.from("game_invites").update({ status: "accepted" }).eq("id", inv.id);
     navigate(`/game/${g.id}`);
+  }
+
+  async function declineInvite(inv: Invite) {
+    await supabase.from("game_invites").update({ status: "declined" }).eq("id", inv.id);
+    loadInvites();
   }
 
   function GameItem({ g }: { g: GameRow }) {
     const oppId = g.player1_id === user?.id ? g.player2_id : g.player1_id;
     const oppP = oppId ? profiles[oppId] : null;
-    const oppName = g.is_solo && oppId === BOT_USER_ID ? "WordBot" : (oppP?.display_name ?? "Waiting…");
+    const oppName = oppP?.display_name ?? "Waiting…";
     const myScore = g.player1_id === user?.id ? g.player1_score : g.player2_score;
     const oppScore = g.player1_id === user?.id ? g.player2_score : g.player1_score;
     const won = g.winner_id === user?.id;
@@ -142,8 +141,6 @@ export default function Lobby() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="truncate font-medium text-sm">{oppName}</p>
-            {g.is_solo && <Badge variant="secondary" className="text-[10px] h-4 px-1"><Bot className="h-2.5 w-2.5 mr-0.5" />Bot</Badge>}
-            {g.mode !== "classic" && <Badge variant="outline" className="text-[10px] h-4 px-1 capitalize">{g.mode}</Badge>}
           </div>
           <p className="text-xs text-muted-foreground capitalize">
             {g.status === "finished" ? (draw ? "Draw" : won ? "You won" : "Lost") : g.status}
@@ -179,56 +176,92 @@ export default function Lobby() {
       </header>
 
       <main className="mx-auto max-w-2xl space-y-4 p-4 animate-fade-in">
-        {/* Game mode picker */}
-        <Card className="p-4 shadow-soft">
-          <h2 className="mb-3 text-base font-display">Game mode</h2>
-          <div className="grid grid-cols-3 gap-2">
-            {MODES.map((m) => {
-              const Icon = m.icon;
-              const active = mode === m.id;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => setMode(m.id)}
-                  className={`flex flex-col items-center gap-1 rounded-xl border p-3 transition text-center ${active ? "border-primary bg-primary/10 ring-2 ring-primary/30" : "border-border hover:bg-secondary/60"}`}
-                >
-                  <Icon className={`h-5 w-5 ${active ? "text-primary" : "text-muted-foreground"}`} />
-                  <span className="text-xs font-medium">{m.name}</span>
-                </button>
-              );
-            })}
-          </div>
-          <p className="mt-2 text-[11px] text-muted-foreground">{MODES.find((m) => m.id === mode)?.desc}</p>
-        </Card>
-
-        {/* Quick actions */}
-        <div className="grid grid-cols-2 gap-3">
-          <Card className="p-4 shadow-soft hover:shadow-elev transition cursor-pointer" onClick={createSolo}>
-            <Bot className="h-6 w-6 text-primary mb-2" />
-            <h3 className="font-medium">Solo vs Bot</h3>
-            <p className="text-xs text-muted-foreground mt-1">Play instantly</p>
-          </Card>
-          <Card className="p-4 shadow-soft hover:shadow-elev transition cursor-pointer" onClick={() => createMultiplayer()}>
-            <Plus className="h-6 w-6 text-primary mb-2" />
-            <h3 className="font-medium">New Match</h3>
-            <p className="text-xs text-muted-foreground mt-1">Share code with anyone</p>
-          </Card>
+        {/* Stats: W / L / D */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <StatTile label="Wins" value={stats.wins} accent="text-primary" />
+          <StatTile label="Losses" value={stats.losses} accent="text-destructive" />
+          <StatTile label="Draws" value={stats.draws} accent="text-foreground" />
         </div>
 
-        {/* Invite friend */}
-        <Card className="p-4 shadow-soft">
-          <InviteFriend mode={mode} />
-        </Card>
+        {/* New Match */}
+        <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+          <DialogTrigger asChild>
+            <Card className="p-5 shadow-soft hover:shadow-elev transition cursor-pointer flex items-center gap-4">
+              <div className="rounded-xl bg-primary/15 p-3">
+                <Plus className="h-6 w-6 text-primary" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-display text-lg">New Match</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Pick a friend and send a play request</p>
+              </div>
+              <Swords className="h-5 w-5 text-muted-foreground" />
+            </Card>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Choose a friend to play</DialogTitle></DialogHeader>
+            {friends.length === 0 ? (
+              <div className="text-center text-sm text-muted-foreground py-6">
+                <UsersRound className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p>You don't have any friends yet.</p>
+                <Button asChild variant="link" className="mt-1"><Link to="/friends">Add friends →</Link></Button>
+              </div>
+            ) : (
+              <ul className="space-y-2 max-h-[60vh] overflow-y-auto">
+                {friends.map((f) => {
+                  const fid = f.requester_id === user!.id ? f.addressee_id : f.requester_id;
+                  const p = profiles[fid];
+                  return (
+                    <li key={f.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
+                      <ProfilePic url={p?.avatar_url} name={p?.display_name || "?"} size="md" />
+                      <div className="flex-1 min-w-0">
+                        <p className="truncate font-medium text-sm">{p?.display_name ?? "Player"}</p>
+                        <p className="text-xs text-muted-foreground">{p?.wins ?? 0}W · {p?.games_played ?? 0} games</p>
+                      </div>
+                      <Button size="sm" onClick={() => sendInviteToFriend(fid)}>
+                        <Send className="h-3.5 w-3.5" /> Invite
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </DialogContent>
+        </Dialog>
 
-        {/* Join with code */}
-        <Card className="p-4 shadow-soft">
-          <h2 className="mb-3 text-base font-display flex items-center gap-2"><Users className="h-4 w-4" /> Join with code</h2>
-          <div className="flex gap-2">
-            <Input placeholder="ABCDE" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={5}
-              className="uppercase tracking-[0.4em] text-center font-mono text-lg h-12" />
-            <Button onClick={joinGame} size="lg">Join</Button>
+        {/* Friends shortcut */}
+        <Card className="p-4 shadow-soft hover:shadow-elev transition cursor-pointer" onClick={() => navigate("/friends")}>
+          <div className="flex items-center gap-3">
+            <UsersRound className="h-5 w-5 text-primary" />
+            <div className="flex-1">
+              <h3 className="font-medium text-sm">My Friends</h3>
+              <p className="text-xs text-muted-foreground">{friends.length} friend{friends.length === 1 ? "" : "s"} · manage requests</p>
+            </div>
+            <span className="text-primary text-sm">→</span>
           </div>
         </Card>
+
+        {/* Incoming game invites */}
+        {invites.length > 0 && (
+          <section>
+            <h2 className="mb-2 px-1 text-sm font-medium text-muted-foreground uppercase tracking-wider">Game requests · {invites.length}</h2>
+            <ul className="space-y-2">
+              {invites.map((inv) => {
+                const p = profiles[inv.inviter_id];
+                return (
+                  <li key={inv.id} className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3 animate-fade-in">
+                    <ProfilePic url={p?.avatar_url} name={p?.display_name || "?"} size="md" />
+                    <div className="flex-1 min-w-0">
+                      <p className="truncate text-sm font-medium">{p?.display_name ?? "Player"} invited you</p>
+                      <p className="text-xs text-muted-foreground">Tap accept to start playing</p>
+                    </div>
+                    <Button size="icon" variant="ghost" onClick={() => declineInvite(inv)} aria-label="Decline"><X className="h-4 w-4" /></Button>
+                    <Button size="sm" onClick={() => acceptInvite(inv)}><Check className="h-3.5 w-3.5" /> Accept</Button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
 
         {/* Ongoing */}
         <section>
@@ -254,75 +287,11 @@ export default function Lobby() {
   );
 }
 
-function InviteFriend({ mode }: { mode: string }) {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState("");
-  const [timer, setTimer] = useState<number | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function send() {
-    if (!user) return;
-    const e = email.trim().toLowerCase();
-    if (!e.includes("@")) { toast.error("Enter a valid email"); return; }
-    setBusy(true);
-    const { data: foundId, error: lookErr } = await supabase.rpc("find_user_id_by_email", { _email: e });
-    if (lookErr) { setBusy(false); toast.error(lookErr.message); return; }
-    if (!foundId) { setBusy(false); toast.error("No player with that email"); return; }
-    if (foundId === user.id) { setBusy(false); toast.error("That's you!"); return; }
-
-    const bag = freshTileBag();
-    const { drawn, remaining } = drawTiles(bag, RACK_SIZE);
-    const { data: g, error } = await supabase.from("games").insert({
-      join_code: generateJoinCode(),
-      player1_id: user.id, status: "waiting",
-      board: emptyBoard() as any, tile_bag: remaining as any,
-      current_turn_user_id: user.id,
-      mode, is_solo: false, turn_seconds: timer,
-    }).select().single();
-    if (error || !g) { setBusy(false); toast.error(error?.message ?? "Failed"); return; }
-    await supabase.from("game_players").insert({ game_id: g.id, user_id: user.id, rack: drawn as any });
-    await supabase.from("game_invites").insert({ game_id: g.id, inviter_id: user.id, invitee_id: foundId, status: "pending" });
-    setBusy(false);
-    setOpen(false);
-    toast.success("Invite sent");
-    navigate(`/game/${g.id}`);
-  }
-
+function StatTile({ label, value, accent }: { label: string; value: number; accent: string }) {
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <button className="flex items-center justify-between w-full text-left">
-          <div>
-            <h2 className="text-base font-display flex items-center gap-2"><Mail className="h-4 w-4" /> Invite by email</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Challenge a friend with optional timer</p>
-          </div>
-          <span className="text-primary text-sm font-medium">Open →</span>
-        </button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Invite a player</DialogTitle></DialogHeader>
-        <div className="space-y-4">
-          <div>
-            <Label>Their email</Label>
-            <Input type="email" placeholder="player@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <div>
-            <Label>Turn timer (optional)</Label>
-            <div className="mt-2 grid grid-cols-6 gap-1.5">
-              <button onClick={() => setTimer(null)} className={`rounded-md border p-2 text-xs ${timer === null ? "border-primary bg-primary/10" : "border-border"}`}>Off</button>
-              {[1, 2, 3, 4, 5].map((m) => (
-                <button key={m} onClick={() => setTimer(m * 60)}
-                  className={`rounded-md border p-2 text-xs ${timer === m * 60 ? "border-primary bg-primary/10" : "border-border"}`}>
-                  {m}m
-                </button>
-              ))}
-            </div>
-          </div>
-          <Button onClick={send} disabled={busy} className="w-full">{busy ? "Sending…" : "Send invite & open game"}</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <Card className="p-4 shadow-soft text-center">
+      <div className={`text-3xl font-bold tabular-nums ${accent}`}>{value}</div>
+      <div className="text-[11px] uppercase tracking-wider text-muted-foreground mt-0.5">{label}</div>
+    </Card>
   );
 }
