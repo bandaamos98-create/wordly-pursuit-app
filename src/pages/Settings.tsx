@@ -13,7 +13,7 @@ import { ProfilePic } from "@/components/ProfilePic";
 import { toast } from "sonner";
 
 export default function Settings() {
-  const { user, signOut } = useAuth();
+  const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const { profile, refresh } = useProfile(user?.id);
   const { theme, setTheme } = useTheme();
@@ -25,7 +25,7 @@ export default function Settings() {
   const [pw2, setPw2] = useState("");
   const [pwBusy, setPwBusy] = useState(false);
 
-  useEffect(() => { if (!user) navigate("/", { replace: true }); }, [user, navigate]);
+  useEffect(() => { if (!loading && !user) navigate("/", { replace: true }); }, [user, loading, navigate]);
   useEffect(() => { if (profile) setName(profile.display_name); }, [profile]);
 
   async function saveName() {
@@ -70,6 +70,7 @@ export default function Settings() {
     toast.success("Password updated. You can now sign in with email + password.");
   }
 
+  if (loading) return <div className="flex min-h-screen items-center justify-center bg-gradient-hero text-foreground">Loading…</div>;
   if (!user) return null;
 
   return (
