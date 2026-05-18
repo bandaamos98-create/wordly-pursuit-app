@@ -37,7 +37,7 @@ type PlayerRow = { user_id: string; rack: unknown };
 
 export default function Game() {
   const { gameId } = useParams();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [game, setGame] = useState<GameRow | null>(null);
   const [player, setPlayer] = useState<PlayerRow | null>(null);
@@ -52,6 +52,7 @@ export default function Game() {
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
+    if (loading) return;
     if (!user) { navigate("/", { replace: true }); return; }
     if (!gameId) return;
     loadGame();
@@ -61,7 +62,7 @@ export default function Game() {
       .on("postgres_changes", { event: "*", schema: "public", table: "game_players", filter: `game_id=eq.${gameId}` }, () => loadGame())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [gameId, user]);
+  }, [gameId, user, loading, loadGame]);
 
   // tick for timer
   useEffect(() => {
