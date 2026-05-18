@@ -269,6 +269,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_game_invite: { Args: { _invite_id: string }; Returns: string }
       cleanup_old_finished_games: { Args: never; Returns: undefined }
       find_user_id_by_email: { Args: { _email: string }; Returns: string }
       get_head_to_head: {
