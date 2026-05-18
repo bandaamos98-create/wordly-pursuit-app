@@ -51,6 +51,16 @@ export default function Game() {
   const lastMoveAt = useRef<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
+  const loadGame = useCallback(async () => {
+    if (!gameId || !user) return;
+    const [{ data: gameData }, { data: playerData }] = await Promise.all([
+      supabase.from("games").select("*").eq("id", gameId).maybeSingle(),
+      supabase.from("game_players").select("user_id,rack").eq("game_id", gameId).eq("user_id", user.id).maybeSingle(),
+    ]);
+    setGame(((gameData as unknown) as GameRow | null) ?? null);
+    setPlayer((playerData as PlayerRow | null) ?? null);
+  }, [gameId, user]);
+
   useEffect(() => {
     if (loading) return;
     if (!user) { navigate("/", { replace: true }); return; }
@@ -70,16 +80,6 @@ export default function Game() {
     const t = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(t);
   }, [game?.turn_deadline]);
-
-  const loadGame = useCallback(async () => {
-    if (!gameId || !user) return;
-    const [{ data: gameData }, { data: playerData }] = await Promise.all([
-      supabase.from("games").select("*").eq("id", gameId).maybeSingle(),
-      supabase.from("game_players").select("user_id,rack").eq("game_id", gameId).eq("user_id", user.id).maybeSingle(),
-    ]);
-    setGame(((gameData as unknown) as GameRow | null) ?? null);
-    setPlayer((playerData as PlayerRow | null) ?? null);
-  }, [gameId, user]);
 
   const board = useMemo(() => (Array.isArray(game?.board) ? (game?.board as BoardType) : emptyBoard()), [game?.board]);
   const baseRack = useMemo(() => (Array.isArray(player?.rack) ? (player?.rack as string[]) : []), [player?.rack]);
