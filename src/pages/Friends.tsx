@@ -18,13 +18,13 @@ type Friendship = {
 };
 
 export default function Friends() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [rows, setRows] = useState<Friendship[]>([]);
 
-  useEffect(() => { if (!user) navigate("/", { replace: true }); }, [user, navigate]);
+  useEffect(() => { if (!loading && !user) navigate("/", { replace: true }); }, [user, loading, navigate]);
   useEffect(() => { if (user) load(); }, [user]);
 
   async function load() {
@@ -74,6 +74,7 @@ export default function Friends() {
     load();
   }
 
+  if (loading) return <div className="flex min-h-screen items-center justify-center bg-gradient-hero text-foreground">Loading…</div>;
   if (!user) return null;
 
   function FriendRow({ r }: { r: Friendship }) {

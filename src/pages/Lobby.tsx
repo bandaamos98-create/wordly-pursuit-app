@@ -22,7 +22,7 @@ type Friendship = { id: string; requester_id: string; addressee_id: string; stat
 type Invite = { id: string; game_id: string; inviter_id: string; invitee_id: string; status: string; created_at: string };
 
 export default function Lobby() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const { profile } = useProfile(user?.id);
   const [games, setGames] = useState<GameRow[]>([]);
@@ -31,6 +31,7 @@ export default function Lobby() {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
+    if (loading) return;
     if (!user) { navigate("/", { replace: true }); return; }
     loadAll();
     const ch = supabase.channel(`lobby-${Math.random().toString(36).slice(2)}`)
@@ -39,7 +40,7 @@ export default function Lobby() {
       .on("postgres_changes", { event: "*", schema: "public", table: "friendships" }, () => loadFriends())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [user]);
+  }, [user, loading]);
 
   async function loadAll() { await Promise.all([loadGames(), loadFriends(), loadInvites()]); }
   async function loadGames() {
@@ -108,15 +109,18 @@ export default function Lobby() {
 
   async function acceptInvite(inv: Invite) {
     if (!user) return;
-    const { data: g, error } = await supabase.from("games").select("*").eq("id", inv.game_id).maybeSingle();
-    if (error || !g) { toast.error("Game not found"); return; }
-    if (g.player2_id && g.player2_id !== user.id) { toast.error("Game is full"); return; }
-    const bagArr = (g.tile_bag as unknown as string[]) ?? [];
+    const { data: acceptedGameId, error: acceptError } = await supabase.rpc("accept_game_invite" as any, { _invite_id: inv.id });
+    if (acceptError || !acceptedGameId) { toast.error(acceptError?.message ?? "Could not accept invite"); return; }
+
+    const { data: g, error } = await supabase.from("games").select("*").eq("id", acceptedGameId as string).maybeSingle();
+    if (error || !g) { toast.error("Game accepted, but game details could not load"); navigate(`/game/${acceptedGameId}`); return; }
+    const bagArr = Array.isArray(g.tile_bag) ? (g.tile_bag as unknown as string[]) : [];
     const { drawn, remaining } = drawTiles(bagArr, RACK_SIZE);
-    await supabase.from("games").update({ player2_id: user.id, status: "active", tile_bag: remaining as any }).eq("id", g.id);
-    await supabase.from("game_players").insert({ game_id: g.id, user_id: user.id, rack: drawn as any });
-    await supabase.from("game_invites").update({ status: "accepted" }).eq("id", inv.id);
-    navigate(`/game/${g.id}`);
+    await Promise.all([
+      supabase.from("games").update({ tile_bag: remaining as any }).eq("id", acceptedGameId as string),
+      supabase.from("game_players").upsert({ game_id: acceptedGameId as string, user_id: user.id, rack: drawn as any }, { onConflict: "game_id,user_id" }),
+    ]);
+    navigate(`/game/${acceptedGameId}`);
   }
 
   async function declineInvite(inv: Invite) {
@@ -155,6 +159,7 @@ export default function Lobby() {
     );
   }
 
+  if (loading) return <div className="flex min-h-screen items-center justify-center bg-gradient-hero text-foreground">Loading…</div>;
   if (!user) return null;
 
   return (

@@ -37,7 +37,7 @@ type PlayerRow = { user_id: string; rack: unknown };
 
 export default function Game() {
   const { gameId } = useParams();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [game, setGame] = useState<GameRow | null>(null);
   const [player, setPlayer] = useState<PlayerRow | null>(null);
@@ -51,25 +51,6 @@ export default function Game() {
   const lastMoveAt = useRef<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
-  useEffect(() => {
-    if (!user) { navigate("/", { replace: true }); return; }
-    if (!gameId) return;
-    loadGame();
-    const channel = supabase
-      .channel(`game-${gameId}-${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "games", filter: `id=eq.${gameId}` }, () => loadGame())
-      .on("postgres_changes", { event: "*", schema: "public", table: "game_players", filter: `game_id=eq.${gameId}` }, () => loadGame())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [gameId, user]);
-
-  // tick for timer
-  useEffect(() => {
-    if (!game?.turn_deadline) return;
-    const t = setInterval(() => setNow(Date.now()), 500);
-    return () => clearInterval(t);
-  }, [game?.turn_deadline]);
-
   const loadGame = useCallback(async () => {
     if (!gameId || !user) return;
     const [{ data: gameData }, { data: playerData }] = await Promise.all([
@@ -79,6 +60,26 @@ export default function Game() {
     setGame(((gameData as unknown) as GameRow | null) ?? null);
     setPlayer((playerData as PlayerRow | null) ?? null);
   }, [gameId, user]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) { navigate("/", { replace: true }); return; }
+    if (!gameId) return;
+    loadGame();
+    const channel = supabase
+      .channel(`game-${gameId}-${Math.random().toString(36).slice(2)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "games", filter: `id=eq.${gameId}` }, () => loadGame())
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_players", filter: `game_id=eq.${gameId}` }, () => loadGame())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [gameId, user, loading, loadGame]);
+
+  // tick for timer
+  useEffect(() => {
+    if (!game?.turn_deadline) return;
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, [game?.turn_deadline]);
 
   const board = useMemo(() => (Array.isArray(game?.board) ? (game?.board as BoardType) : emptyBoard()), [game?.board]);
   const baseRack = useMemo(() => (Array.isArray(player?.rack) ? (player?.rack as string[]) : []), [player?.rack]);
